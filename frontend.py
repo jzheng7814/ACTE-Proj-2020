@@ -32,4 +32,4 @@ while True:
     try:
         print (same_factor(*reduced_str(*input().split())))
     except:
-        print(-1000000)
+        print(-5)
