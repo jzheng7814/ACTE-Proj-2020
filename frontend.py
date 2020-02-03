@@ -28,8 +28,9 @@ def same_factor(s1, s2):
         same += ord(i) - ord(j)
     return same + abs(len(s1) - len(s2))
 
-while True:
-    try:
-        print (same_factor(*reduced_str(*input().split())))
-    except:
-        print(-5)
+with open(r'C:\Users\jerry\txtfiles\in.txt') as infile:
+    for i in infile:
+        try:
+            print(same_factor(*reduced_str(*i.split())))
+        except:
+            print(-5)
