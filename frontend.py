@@ -1,3 +1,4 @@
+from tkinter import Label, Button, OptionMenu, Tk, StringVar, Entry
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from tempfile import TemporaryFile
@@ -12,7 +13,18 @@ from random import choice
 from re import sub, match
 from requests import get
 from os import makedirs
-from tkinter import *
+
+credentials = None
+if exists('token.pickle'):
+    with open('token.pickle', 'rb') as token:
+        credentials = load(token)
+if not credentials or not credentials.valid:
+    flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/documents')
+    credentials = flow.run_local_server(port = 0)
+    with open('token.pickle', 'wb') as token:
+        dump(credentials, token)
+
+service = build('docs', 'v1', credentials=credentials)
 
 def read_paragraph_element(element):
     text_run = element.get('textRun')
@@ -40,18 +52,7 @@ def read_strucutural_elements(elements):
 
 
 def get_doc_text(DOCUMENT_ID):
-    credentials = None
-    if exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            credentials = load(token)
-    if not credentials or not credentials.valid:
-        flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/documents.readonly')
-        credentials = flow.run_local_server(port = 0)
-        with open('token.pickle', 'wb') as token:
-            dump(credentials, token)
-
-    service = build('docs', 'v1', credentials=credentials)
-
+    global service
     doc = service.documents().get(documentId = DOCUMENT_ID).execute()
     return read_strucutural_elements(doc.get('body').get('content'))
 
@@ -148,36 +149,12 @@ def create(DOCUMENT_LINK):
         makedirs(path)
     with open('C:\\quickstart\\data.txt', 'w') as outfile:
         if v.get() == 'Sentences/Synonyms/Antonyms':
+            data = []
+            newdoc = service.documents().create().execute()
             for i in get_details(DOCUMENT_ID):
-                outfile.write('Word: ' + i[0] + '\n')
-                outfile.write('Definition: ' + i[1] + '\n')
-
-                x = get_two_from_list(i[4])
-                outfile.write('Sentences: ')
-                if len(x) == 0:
-                    outfile.write('No sentences\n')
-                elif len(x) == 1:
-                    outfile.write(x[0] + '\n')
-                else:
-                    outfile.write(x[0] + '\n' + '           ' + x[1] + '\n')
-
-                x = get_two_from_list(i[2])
-                outfile.write('Synonyms: ')
-                if len(x) == 0:
-                    outfile.write('No synonyms\n')
-                elif len(x) == 1:
-                    outfile.write(x[0] + '\n')
-                else:
-                    outfile.write(x[0] + '\n' + '          ' + x[1] + '\n')
-
-                x = get_two_from_list(i[3])
-                outfile.write('Antonyms: ')
-                if len(x) == 0:
-                    outfile.write('No antonyms\n')
-                elif len(x) == 1:
-                    outfile.write(x[0] + '\n')
-                else:
-                    outfile.write(x[0] + '\n' + '          ' + x[1] + '\n\n')
+                data.append(i)
+            for i in range(5):
+                service.documents().batchUpdate(documentId = newdoc.get('documentId'), body = {'requests': []})
         elif v.get() == 'Flashcards':
             x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text(DOCUMENT_ID).split('\n')[1:])])
             text = deque(filter(lambda i: i != '-', x.split()))
