@@ -59,19 +59,10 @@ def get_doc_text(DOCUMENT_ID):
     return read_strucutural_elements(doc.get('body').get('content'))
 
 def get_two_from_list(l):
-    r = []
-    if len(l) > 5:
-        sentences = choice(l[:5])
-        l.remove(sentences)
-        r.append(sentences)
-        sentences = choice(l[:4])
-        r.append(sentences)
-    elif len(l) >= 2:
-        r.append(l[0])
-        r.append(l[1])
+    if len(l) >= 2:
+        return l[:2]
     else:
-        r = l
-    return r
+        return l
 
 def process_word(word):
     text = BeautifulSoup(get('https://www.thesaurus.com/browse/' + word.term + '?s=t').content, 'html5lib').prettify()
@@ -106,33 +97,33 @@ class word:
     synonyms : str
     sentence : str
 
-def main():
-    words = []
-    x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text('18LZlcLw1X-0bxY9jMVbwleQbQJRfJDixlJFH0DoAAp4').split('\n')[1:])])
-    text = deque(filter(lambda i: i != '-', x.split()))
-    text.popleft()
-    length = len(text)
+words = []
+filename = get_doc_text('195NrVPNtTsKQJLsPtRt3qcVfxctTahP0rB4EUmrffqU').split('\n')[0]
+x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text('195NrVPNtTsKQJLsPtRt3qcVfxctTahP0rB4EUmrffqU').split('\n')[1:])])
+text = deque(filter(lambda i: i != '-', x.split()))
+text.popleft()
+length = len(text)
 
-    while length > 0:
-        words.append(word('', '', '', '', '', ''))
-        words[-1].term = text.popleft()
-        txt = text.popleft()
-        length -= 2
-        while not match('[0-9]+\.', txt) and length >= 0:
-            if match('\([a-zA-Z]+\)', txt):
-                if words[-1].parts_of_speech != '':
-                    words[-1].parts_of_speech += '; '
-                if words[-1].definition != '':
-                    words[-1].definition = words[-1].definition[:-1]
-                    words[-1].definition += '; '
-                words[-1].parts_of_speech += txt + ''
-                txt = text.popleft()
-            elif length > 0:
-                words[-1].definition += txt + ' '
-                txt = text.popleft()
-            length -= 1
+while length > 0:
+    words.append(word('', '', '', '', '', ''))
+    words[-1].term = text.popleft()
+    txt = text.popleft()
+    length -= 2
+    while not match('[0-9]+\.', txt) and length >= 0:
+        if match('\([a-zA-Z]+\)', txt):
+            if words[-1].parts_of_speech != '':
+                words[-1].parts_of_speech += '; '
+            if words[-1].definition != '':
+                words[-1].definition = words[-1].definition[:-1]
+                words[-1].definition += '; '
+            words[-1].parts_of_speech += txt + ''
+            txt = text.popleft()
+        elif length > 0:
+            words[-1].definition += txt + ' '
+            txt = text.popleft()
+        length -= 1
 
-    words = map(process_word, words)
+words = map(process_word, words)
 
 requests = [{
       'insertTable': {
@@ -145,7 +136,11 @@ requests = [{
   }
   ]
 
-docid = '1aPknNebJ0lIez5iwHt0a3UhL8luVGPuJTPCJgID5dGU'
+docid = service.documents().create(
+    body = {
+        'title' : filename
+    }
+).execute().get('documentId')
 
 service.documents().batchUpdate(
     documentId = docid,
@@ -201,3 +196,77 @@ service.documents().batchUpdate(
     documentId = docid,
     body = {'requests' : requests}
 ).execute()
+
+doc = service.documents().get(documentId = docid).execute()
+table = doc['body']['content'][2]
+
+def ignore():
+    global table
+    for i, j in zip([((i, j), (i + 1, j), (i, j + 1), (i + 1, j + 1)) for i in range(0, 20, 2) for j in range(0, 4, 2)], words):
+        requests = [{
+            'insertText' : {
+                'location' : {
+                    'index' : table['table']['tableRows'][i[0][0]]['tableCells'][i[0][1]]['content'][0]['startIndex']
+                },
+                'text' : f'Word: {j.term}\n\n\nParts of speech: {j.parts_of_speech}\n\n\nDefinition: {j.definition}'
+            }
+        }]
+
+        service.documents().batchUpdate(
+            documentId = docid,
+            body = {'requests' : requests}
+        ).execute()
+
+        doc = service.documents().get(documentId = docid).execute()
+        table = doc['body']['content'][2]
+
+        requests = [{
+            'insertText' : {
+                'location' : {
+                    'index' : table['table']['tableRows'][i[1][0]]['tableCells'][i[1][1]]['content'][0]['startIndex']
+                },
+                'text' : 'Draw a picture to help you remember/understand the word.'
+            }
+        }]
+
+        service.documents().batchUpdate(
+            documentId = docid,
+            body = {'requests' : requests}
+        ).execute()
+
+        doc = service.documents().get(documentId = docid).execute()
+        table = doc['body']['content'][2]
+
+        requests = [{'insertText' : {
+                'location' : {
+                    'index' : table['table']['tableRows'][i[2][0]]['tableCells'][i[2][1]]['content'][0]['startIndex']
+                },
+                'text' : f'Use the word in your own sentence.\n\n{j.sentence}'
+            }
+        }]
+
+        service.documents().batchUpdate(
+            documentId = docid,
+            body = {'requests' : requests}
+        ).execute()
+
+        doc = service.documents().get(documentId = docid).execute()
+        table = doc['body']['content'][2]
+
+        requests = [{'insertText' : {
+                'location' : {
+                    'index' : table['table']['tableRows'][i[3][0]]['tableCells'][i[3][1]]['content'][0]['startIndex']
+                },
+                'text' : f'Synonyms: {j.synonyms}\n\n\nAntonyms: {j.antonyms}'
+            }
+        }]
+
+        service.documents().batchUpdate(
+            documentId = docid,
+            body = {'requests' : requests}
+        ).execute()
+
+        doc = service.documents().get(documentId = docid).execute()
+        table = doc['body']['content'][2]
+
+ignore()
