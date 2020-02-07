@@ -64,6 +64,21 @@ class vocab_word:
 term_lookup_table = {}
 write = TemporaryFile()
 
+def get_two_from_list(l):
+    r = []
+    if len(l) > 5:
+        sentences = choice(l[:5])
+        l.remove(sentences)
+        r.append(sentences)
+        sentences = choice(l[:4])
+        r.append(sentences)
+    elif len(l) >= 2:
+        r.append(l[0])
+        r.append(l[1])
+    else:
+        r = l
+    return r
+
 def process_word(word):
     while term_lookup_table[word.word] == 'Pending': pass
     text = term_lookup_table[word.word].prettify()
@@ -80,9 +95,9 @@ def process_word(word):
 
     example_sentences = text[text.find('"exampleSentences":') + 19:text.find('"relatedWordsAPIData":')]
     example_sentences = [j[12:-1] for j in filter(lambda i: match('"sentence":".+"', i),
-                                                  chain(*[i.split(',') for i in sub('[{\[\]]', '', example_sentences).split('},')]))]
+                                                  chain(*[i.split(',') for i in sub('[{\[\]]', '', example_sentences).split('},')]))] + ['']
 
-    return word.word, word.definition, synonyms, antonyms, example_sentences
+    return word.word, word.definition, get_two_from_list(synonyms), get_two_from_list(antonyms), choice(example_sentences)
 
 def add_word(word):
     def add_info_to_table(wd):
@@ -116,21 +131,6 @@ def get_details(DOCUMENT_ID):
     for i in parse(DOCUMENT_ID):
         yield process_word(i)
     return None
-
-def get_two_from_list(l):
-    r = []
-    if len(l) > 5:
-        sentences = choice(l[:5])
-        l.remove(sentences)
-        r.append(sentences)
-        sentences = choice(l[:4])
-        r.append(sentences)
-    elif len(l) >= 2:
-        r.append(l[0])
-        r.append(l[1])
-    else:
-        r = l
-    return r
 
 root = Tk()
 warning_label = Label(root, text = '', font = ('Times New Roman', 20))
