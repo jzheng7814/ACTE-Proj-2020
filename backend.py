@@ -20,7 +20,11 @@ if exists('token.pickle'):
     with open('token.pickle', 'rb') as token:
         credentials = load(token)
 if not credentials or not credentials.valid:
+<<<<<<< HEAD
     flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/documents')
+=======
+    flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/drive')
+>>>>>>> 12f09937a0cffc09792354ddb19e2543c3302993
     credentials = flow.run_local_server(port = 0)
     with open('token.pickle', 'wb') as token:
         dump(credentials, token)
