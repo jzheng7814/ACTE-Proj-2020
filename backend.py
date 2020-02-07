@@ -13,6 +13,7 @@ from random import choice
 from re import sub, match
 from requests import get
 from os import makedirs
+from json import dumps
 
 
 credentials = None
@@ -20,11 +21,7 @@ if exists('token.pickle'):
     with open('token.pickle', 'rb') as token:
         credentials = load(token)
 if not credentials or not credentials.valid:
-<<<<<<< HEAD
-    flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/documents')
-=======
     flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/drive')
->>>>>>> 12f09937a0cffc09792354ddb19e2543c3302993
     credentials = flow.run_local_server(port = 0)
     with open('token.pickle', 'wb') as token:
         dump(credentials, token)
@@ -95,8 +92,8 @@ def process_word(word):
 
     if len(example_sentences) == 0:
         example_sentences = ['']
-    word.synonyms = ' '.join(get_two_from_list(synonyms))
-    word.antonyms = ' '.join(get_two_from_list(antonyms))
+    word.synonyms = ', '.join(get_two_from_list(synonyms))
+    word.antonyms = ', '.join(get_two_from_list(antonyms))
     word.sentence = choice(example_sentences)
     return word
 
@@ -109,37 +106,98 @@ class word:
     synonyms : str
     sentence : str
 
-words = []
-x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text('18LZlcLw1X-0bxY9jMVbwleQbQJRfJDixlJFH0DoAAp4').split('\n')[1:])])
-text = deque(filter(lambda i: i != '-', x.split()))
-text.popleft()
-length = len(text)
+def main():
+    words = []
+    x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text('18LZlcLw1X-0bxY9jMVbwleQbQJRfJDixlJFH0DoAAp4').split('\n')[1:])])
+    text = deque(filter(lambda i: i != '-', x.split()))
+    text.popleft()
+    length = len(text)
 
-while length > 0:
-    words.append(word('', '', '', '', '', ''))
-    words[-1].term = text.popleft()
-    txt = text.popleft()
-    length -= 2
-    while not match('[0-9]+\.', txt) and length >= 0:
-        if match('\([a-zA-Z]+\)', txt):
-            if words[-1].parts_of_speech != '':
-                words[-1].parts_of_speech += '; '
-            if words[-1].definition != '':
-                words[-1].definition = words[-1].definition[:-1]
-                words[-1].definition += '; '
-            words[-1].parts_of_speech += txt + ''
-            txt = text.popleft()
-        elif lpopip ength > 0:
-            words[-1].definition += txt + ' '
-            txt = text.popleft()
-        length -= 1
+    while length > 0:
+        words.append(word('', '', '', '', '', ''))
+        words[-1].term = text.popleft()
+        txt = text.popleft()
+        length -= 2
+        while not match('[0-9]+\.', txt) and length >= 0:
+            if match('\([a-zA-Z]+\)', txt):
+                if words[-1].parts_of_speech != '':
+                    words[-1].parts_of_speech += '; '
+                if words[-1].definition != '':
+                    words[-1].definition = words[-1].definition[:-1]
+                    words[-1].definition += '; '
+                words[-1].parts_of_speech += txt + ''
+                txt = text.popleft()
+            elif length > 0:
+                words[-1].definition += txt + ' '
+                txt = text.popleft()
+            length -= 1
 
-words = map(process_word, words)
-for i in words:
-    print(i.term)
-    print(i.definition)
-    print(i.parts_of_speech)
-    print(i.synonyms)
-    print(i.antonyms)
-    print(i.sentence)
-    print()
+    words = map(process_word, words)
+
+requests = [{
+      'insertTable': {
+          'rows': 20,
+          'columns': 4,
+          'endOfSegmentLocation': {
+            'segmentId': ''
+          }
+      },
+  }
+  ]
+
+docid = '1aPknNebJ0lIez5iwHt0a3UhL8luVGPuJTPCJgID5dGU'
+
+service.documents().batchUpdate(
+    documentId = docid,
+    body = {'requests' : requests}
+).execute()
+
+doc = service.documents().get(documentId = docid).execute()
+table = doc['body']['content'][2]
+
+requests = [
+            {
+                'updateTableRowStyle' : {
+                    'tableStartLocation': {'index': 2},
+                    'rowIndices': [],
+                    'tableRowStyle': {
+                        'minRowHeight': {
+                            'magnitude': 175,
+                            'unit': 'PT'
+                        }
+                    },
+                    'fields': '*'
+                }
+            },
+            {
+                'updateDocumentStyle' : {
+                    'documentStyle': {
+                        'marginTop' : {
+                            'magnitude' : 23,
+                            'unit' : 'PT'
+                        },
+
+                        'marginBottom' : {
+                            'magnitude' : 30,
+                            'unit' : 'PT'
+                        },
+
+                        'marginLeft' : {
+                            'magnitude' : 30,
+                            'unit' : 'PT'
+                        },
+
+                        'marginRight' : {
+                            'magnitude' : 30,
+                            'unit' : 'PT'
+                        }
+                    },
+                    'fields' : 'marginTop,marginBottom,marginRight,marginLeft'
+                }
+            }
+        ]
+
+service.documents().batchUpdate(
+    documentId = docid,
+    body = {'requests' : requests}
+).execute()
