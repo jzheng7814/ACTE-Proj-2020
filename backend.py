@@ -1,5 +1,6 @@
 from tkinter import Label, Button, OptionMenu, Tk, StringVar, Entry
 from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from tempfile import TemporaryFile
 from dataclasses import dataclass
@@ -21,10 +22,15 @@ if exists('token.pickle'):
     with open('token.pickle', 'rb') as token:
         credentials = load(token)
 if not credentials or not credentials.valid:
-    flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', 'https://www.googleapis.com/auth/drive')
-    credentials = flow.run_local_server(port = 0)
-    with open('token.pickle', 'wb') as token:
-        dump(credentials, token)
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'client_secrets.json', ['https://www.googleapis.com/auth/drive'])
+            credentials = flow.run_local_server(port = 0)
+        with open('token.pickle', 'wb') as token:
+            dump(credentials, token)
 
 service = build('docs', 'v1', credentials = credentials)
 
