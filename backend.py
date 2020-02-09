@@ -98,6 +98,7 @@ class word:
     sentence : str
 
 words = []
+unused = None
 filename = get_doc_text('195NrVPNtTsKQJLsPtRt3qcVfxctTahP0rB4EUmrffqU').split('\n')[0]
 x = ''.join([j + '\n' for j in filter(lambda i: i != '\n', get_doc_text('195NrVPNtTsKQJLsPtRt3qcVfxctTahP0rB4EUmrffqU').split('\n')[1:])])
 text = deque(filter(lambda i: i != '-', x.split()))
