@@ -1,4 +1,5 @@
 from oauth2client.service_account import ServiceAccountCredentials
+from backend import get_credentials, remove_whitespace, unique, remove_punctuation
 from re import sub, split
 from tkinter import *
 import gspread
@@ -7,10 +8,6 @@ import pprint
 root = Tk()
 
 class Date:
-    """
-       Date class used to represent dates (honestly, more of a @dataclass so I don't have to fool around with 6 more
-       global variables. Smh, so much stuff to deal with in this language).
-    """
     def __init__(self, month = StringVar(root), day = StringVar(root), year = StringVar(root), hour = StringVar(root), minute = StringVar(root), second = StringVar(root)):
         self.month, self.day, self.year, self.hour, self.minute, self.second = month, day, year, hour, minute, second
 
@@ -18,73 +15,57 @@ class Date:
         return self.year.get().rjust(4, ' ') + self.month.get().rjust(2, ' ') + self.day.get().rjust(2, ' ') + self.hour.get().rjust(2, '0') + self.minute.get().rjust(2, '0') + self.second.get().rjust(2, '0')
 
 def rearrange(spec):
-    """Arranges data into the YYYYMMDDHHMMSS format as Date.__str__() returns."""
     f = split('[:/ ]', spec)
     return f[2].rjust(4, ' ') + f[0].rjust(2, ' ') + f[1].rjust(2, ' ') + f[3].rjust(2, '0') + f[4].rjust(2, '0') + f[5].rjust(2, '0')
 
 def arrange_table():
-    """Does the heavy lifting on the data arrangement of the spreadsheet."""
-
     global link, date
 
-    #bunch of extra authentication hurdles I have to jump through to get to the sheet. -_-.
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive'] #specifies access scope
-    creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)      #retrieves credentials
-    client = gspread.authorize(creds)                                                          #authorizes to get access
-    sheet = client.open_by_url(link.get()).sheet1                                              #opens the spreadsheet
+    client = gspread.authorize(get_credentials(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']))
+    sheet = client.open_by_url(link.get()).sheet1
+    data = sheet.get_all_records()
 
-    used = []
-    unique = []
-    data = sheet.get_all_records() #gets all data as list of dicts
-
-    if len(data) == 0: #efficiency optimization, checking if empty destroys a lot of request inefficiency
+    if len(data) == 0:
         return
 
-    #resets keys to known values for reference: all punctuation and whitespace are eliminated. Correct spelling was assumed
     for i in data:
-        new_keys = [] #contains new keys that need to be made into standard form
+        new_keys = []
         to_pop_keys = []
         for j in i:
-            new_key = ''.join(j.lower().split()) #strips all whitespace
-            new_key = sub('[:,.]', '', new_key)  #strips all punctuation assumed
-            if new_key in {'score', 'emailaddress', 'lastname', 'firstname', 'timestamp', 'block'}: #eliminates all useless keys
-                new_keys.append((new_key, j)) #Cannot change length of dict() in iteration
+            new_key = remove_whitespace(j)
+            new_key = remove_punctuation(new_key)
+            new_key = new_key.lower()
+
+            if new_key in {'score', 'emailaddress', 'lastname', 'firstname', 'timestamp', 'block'}:
+                new_keys.append((new_key, j))
             else:
-                to_pop_keys.append(j)         #ditto
+                to_pop_keys.append(j)
 
         for j, k in new_keys:
             if j in {'lastname', 'firstname'}:
-                i[k] = ''.join(i[k].split()).lower().capitalize() #arranges names in case someone tries to do something funny
-            i[j] = i[k]                                           #(sighs) someone did cODY. Please.
-            i.pop(k)                                              #or how about that /'/.'/' name?
+                i[k] = ''.join(i[k].split()).lower().capitalize()
+            i[j] = i[k]
+            i.pop(k)
         for j in to_pop_keys:
             i.pop(j)
 
-    data = sorted(data, key = lambda i: i['score'], reverse = True) #Sorts items by score in reverse order
-                                                                    #(aids in taking highest score with unique() call)
+    data = sorted(data, key = lambda i: i['score'], reverse = True)
 
-    #calls ad hoc unique() on elements (email address is used because there are no repeats, last names will repeat)
-    for i in data:
-        if i['emailaddress'] not in used:
-            used.append(i['emailaddress'])
-            unique.append(i)
-
-    unique.sort(key = lambda i: i['lastname']) #stable_sort()s by last name
-    unique.sort(key = lambda i: i['block'])    #stable_sort()s by block
+    data = unique(data, key = lambda i: i['emailaddress'])
+    data.sort(key = lambda i: i['lastname'])
+    data.sort(key = lambda i: i['block'])
 
     column_map = ['timestamp', 'emailaddress', 'lastname', 'firstname', 'score', 'block']
     cur_row = 2
-    sheet.clear() #eliminates all data
+    sheet.clear()
 
-    #initializes header row
     cells = sheet.range('A1:F1')
     for i, j in zip(cells, ['Timestamp:', 'Email Address:', 'LAST Name:', 'FIRST Name:', 'Score:', 'Block:']):
         i.value = j
     sheet.update_cells(cells)
 
-    #pastes rest of data to table in arranged order
-    for i in unique:
-        if rearrange(i['timestamp']) > date.__str__(): #eliminates all submissions after due time
+    for i in data:
+        if rearrange(i['timestamp']) > str(date):
             continue
         cells = sheet.range('A' + str(cur_row) + ':F' + str(cur_row))
         for j, k in zip(cells, column_map):
