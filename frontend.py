@@ -1,9 +1,8 @@
-from oauth2client.service_account import ServiceAccountCredentials
 from backend import get_credentials, remove_whitespace, unique, remove_punctuation
+from tkinter import Tk, OptionMenu, StringVar, Entry, Label, Button
+from oauth2client.service_account import ServiceAccountCredentials
 from re import sub, split
-from tkinter import *
 import gspread
-import pprint
 
 root = Tk()
 
