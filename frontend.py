@@ -1,8 +1,11 @@
 from backend import get_credentials, remove_whitespace, unique, remove_punctuation
 from tkinter import Tk, OptionMenu, StringVar, Entry, Label, Button
 from oauth2client.service_account import ServiceAccountCredentials
+from gspread.models import Worksheet
+from typing import List, Dict
 from re import sub, split
 import gspread
+import pprint
 
 root = Tk()
 
@@ -13,27 +16,28 @@ class Date:
     def __str__(self):
         return self.year.get().rjust(4, ' ') + self.month.get().rjust(2, ' ') + self.day.get().rjust(2, ' ') + self.hour.get().rjust(2, '0') + self.minute.get().rjust(2, '0') + self.second.get().rjust(2, '0')
 
-def rearrange(spec):
+def rearrange(spec : str) -> str:
     f = split('[:/ ]', spec)
     return f[2].rjust(4, ' ') + f[0].rjust(2, ' ') + f[1].rjust(2, ' ') + f[3].rjust(2, '0') + f[4].rjust(2, '0') + f[5].rjust(2, '0')
 
-def arrange_table():
-    global link, date
+def write_row(sheet : Worksheet, data : List[str], row : int) -> None:
+    cells = sheet.range('A' + str(row) + ':F' + str(row))
+    for i, j in zip(cells, data):
+        i.value = j
+    sheet.update_cells(cells)
 
-    client = gspread.authorize(get_credentials(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']))
-    sheet = client.open_by_url(link.get()).sheet1
-    data = sheet.get_all_records()
+def write_to_sheet(sheet : Worksheet, data : List[Dict[str, str]], column_headers : List[str]) -> None:
+    row = 2
+    for i in data:
+        write_row(sheet, i.values(), row)
+        row += 1
 
-    if len(data) == 0:
-        return
-
+def remove_meaningless_keys(data : List[Dict[str, str]]) -> None:
     for i in data:
         new_keys = []
         to_pop_keys = []
         for j in i:
-            new_key = remove_whitespace(j)
-            new_key = remove_punctuation(new_key)
-            new_key = new_key.lower()
+            new_key = remove_punctuation(remove_whitespace(j)).lower()
 
             if new_key in {'score', 'emailaddress', 'lastname', 'firstname', 'timestamp', 'block'}:
                 new_keys.append((new_key, j))
@@ -48,29 +52,28 @@ def arrange_table():
         for j in to_pop_keys:
             i.pop(j)
 
-    data = sorted(data, key = lambda i: i['score'], reverse = True)
+def arrange_table() -> None:
+    global link, date
 
+    client = gspread.authorize(get_credentials(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']))
+    sheet = client.open_by_url(link.get()).sheet1
+    data = sheet.get_all_records()
+    sheet.clear()
+
+    column_map = ['timestamp', 'emailaddress', 'lastname', 'firstname', 'score', 'block']
+
+    if len(data) == 0: return
+
+    remove_meaningless_keys(data)
+    data = sorted(data, key = lambda i: i['score'], reverse = True)
     data = unique(data, key = lambda i: i['emailaddress'])
     data.sort(key = lambda i: i['lastname'])
     data.sort(key = lambda i: i['block'])
-
-    column_map = ['timestamp', 'emailaddress', 'lastname', 'firstname', 'score', 'block']
-    cur_row = 2
-    sheet.clear()
-
-    cells = sheet.range('A1:F1')
-    for i, j in zip(cells, ['Timestamp:', 'Email Address:', 'LAST Name:', 'FIRST Name:', 'Score:', 'Block:']):
-        i.value = j
-    sheet.update_cells(cells)
-
-    for i in data:
-        if rearrange(i['timestamp']) > str(date):
-            continue
-        cells = sheet.range('A' + str(cur_row) + ':F' + str(cur_row))
-        for j, k in zip(cells, column_map):
-            j.value = i[k]
-        sheet.update_cells(cells)
-        cur_row += 1
+    
+    write_row(sheet, ['Timestamp:', 'Email Address:', 'LAST Name:', 'FIRST Name:', 'Score:', 'Block:'], 1)
+    data = filter(lambda i, cutoff = str(date): rearrange(i['timestamp']) < cutoff, data)
+    write_to_sheet(sheet, data, column_map)
+        
 
 date = Date()
 date.month.set('MM')
